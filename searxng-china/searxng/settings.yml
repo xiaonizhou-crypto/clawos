@@ -47,7 +47,7 @@ outgoing:
 
 ui:
   static_use_hash: true
-  default_locale: "zh-Hans"
+  default_locale: ""
   theme_args:
     simple_style: auto
 
