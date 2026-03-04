@@ -32,19 +32,82 @@ Tools:
 - `feishu_tasklist_add_members`
 - `feishu_tasklist_remove_members`
 
+## CRITICAL: Before Every Task Creation
+
+You MUST follow these two steps every time before calling `feishu_task_create` or `feishu_task_subtask_create`. No exceptions.
+
+### Step 1 — Assignee (REQUIRED)
+
+The requesting user's `open_id` is in the system-injected **"Conversation info (untrusted metadata)"** block under the `sender_id` field. **Always use it as the assignee.** Never create a task without an assignee — the user will not be able to see it.
+
+```
+Conversation info (untrusted metadata):
+{
+  "sender_id": "ou_xxxxxxxxxxxxxxxx",   ← this is the user's open_id
+  ...
+}
+```
+
+Always include in `members`:
+
+```json
+{ "id": "<sender_id value>", "role": "assignee", "type": "user" }
+```
+
+### Step 2 — Due Date/Time (REQUIRED when user mentions a time)
+
+The Feishu API requires **UTC milliseconds** (13-digit string). Follow this exact procedure:
+
+#### 2a. Get today's date from conversation timestamp (CRITICAL)
+
+The `timestamp` in Conversation info is the **ONLY** source of truth for the current date and time. **Do NOT use your internal training knowledge of today's date — it is stale and will produce timestamps months in the past.**
+
+```
+Conversation info:
+{
+  "timestamp": "2026-03-04T12:34:56Z",  ← parse this to get current UTC datetime
+  ...
+}
+```
+
+Convert to CST (Asia/Shanghai, UTC+8) to get the user's local current date and time.
+
+#### 2b. Interpret the user's time expression in local time (CST)
+
+- Explicit 24h: "19:45", "07:30" → use as-is
+- "晚上X点" / "下午X点" → PM: use X+12 (if X < 12)
+- "早上X点" / "上午X点" → AM: use X
+- **Bare "X点" or "X点Y分" without qualifier**: infer from current local hour
+  - If current local hour ≥ 12 and X ≤ 11 and X is within a few hours of current time → **treat as PM (X+12)**
+  - Example: current local time is 20:00 (evening), user says "7点45" → they mean **19:45 today**, not 07:45 tomorrow
+  - If X+12 has already passed today, schedule for the next day at X+12
+  - If truly ambiguous, confirm with the user before creating
+
+#### 2c. Convert resolved local datetime to UTC ms
+
+Subtract 8 hours (CST → UTC), then compute Unix milliseconds.
+
+**Worked example**: `timestamp` in Conversation info resolves to 2026-03-04 20:00 CST (current local time)
+
+- User says "7点45" → evening context → interpret as **19:45 CST today** (March 4)
+- 2026-03-04 19:45 CST = 2026-03-04 11:45 UTC = `1741088700000`
+- Pass `"timestamp": "1741088700000"` to the API
+
+**Never** pass local time directly as UTC. Doing so causes an 8-hour offset error.
+
+---
+
 ## Notes
 
 - `task_guid` can be taken from a task URL (guid query param) or from `feishu_task_get` output.
 - `comment_id` can be obtained from `feishu_task_comment_list` output.
 - `attachment_guid` can be obtained from `feishu_task_attachment_list` output.
 - `user_id_type` controls returned/accepted user identity type (`open_id`, `user_id`, `union_id`).
-- If no assignee is specified, set the assignee to the requesting user. Avoid creating unassigned tasks because the user may not be able to view them.
 - Task visibility: users can only view tasks when they are included as assignee.
 - Current limitation: the bot can only create subtasks for tasks created by itself.
 - Attachment upload supports local `file_path` and remote `file_url`. Remote URLs are fetched with runtime media safety checks and size limit (`mediaMaxMb`).
 - Keep tasklist owner as the bot. Add users as members to avoid losing bot access.
 - Use tasklist tools for tasklist membership changes; do not use `feishu_task_update` to move tasks between tasklists.
-- **Timestamps must be UTC milliseconds (13-digit string).** The Feishu API expects UTC. Always convert the user's local time to UTC before passing. Example: if the user is in Asia/Shanghai (UTC+8) and says "7pm tonight", subtract 8 hours → pass UTC 11:00am as the timestamp. Use the session's current time context to calculate the correct UTC value.
 
 ## Create Task
 
@@ -52,8 +115,8 @@ Tools:
 {
   "summary": "Quarterly review",
   "description": "Prepare review notes",
-  "due": { "timestamp": "1735689600000", "is_all_day": true },
-  "members": [{ "id": "ou_xxx", "role": "assignee", "type": "user" }],
+  "due": { "timestamp": "1740699900000", "is_all_day": false },
+  "members": [{ "id": "ou_xxxxxxxxxxxxxxxx", "role": "assignee", "type": "user" }],
   "user_id_type": "open_id"
 }
 ```
@@ -65,8 +128,8 @@ Tools:
   "task_guid": "e297ddff-06ca-4166-b917-4ce57cd3a7a0",
   "summary": "Draft report outline",
   "description": "Collect key metrics",
-  "due": { "timestamp": "1735689600000", "is_all_day": true },
-  "members": [{ "id": "ou_xxx", "role": "assignee", "type": "user" }],
+  "due": { "timestamp": "1740699900000", "is_all_day": false },
+  "members": [{ "id": "ou_xxxxxxxxxxxxxxxx", "role": "assignee", "type": "user" }],
   "user_id_type": "open_id"
 }
 ```
@@ -134,7 +197,7 @@ Tasklists support three roles: owner (read/edit/manage), editor (read/edit), vie
 ```json
 {
   "name": "Project Alpha Tasklist",
-  "members": [{ "id": "ou_xxx", "type": "user", "role": "editor" }],
+  "members": [{ "id": "ou_xxxxxxxxxxxxxxxx", "type": "user", "role": "editor" }],
   "user_id_type": "open_id"
 }
 ```
@@ -165,7 +228,7 @@ Tasklists support three roles: owner (read/edit/manage), editor (read/edit), vie
   "tasklist_guid": "cc371766-6584-cf50-a222-c22cd9055004",
   "tasklist": {
     "name": "Renamed Tasklist",
-    "owner": { "id": "ou_xxx", "type": "user", "role": "owner" }
+    "owner": { "id": "ou_xxxxxxxxxxxxxxxx", "type": "user", "role": "owner" }
   },
   "update_fields": ["name", "owner"],
   "origin_owner_to_role": "editor",
@@ -186,7 +249,7 @@ Tasklists support three roles: owner (read/edit/manage), editor (read/edit), vie
 ```json
 {
   "tasklist_guid": "cc371766-6584-cf50-a222-c22cd9055004",
-  "members": [{ "id": "ou_xxx", "type": "user", "role": "editor" }],
+  "members": [{ "id": "ou_xxxxxxxxxxxxxxxx", "type": "user", "role": "editor" }],
   "user_id_type": "open_id"
 }
 ```
@@ -196,38 +259,7 @@ Tasklists support three roles: owner (read/edit/manage), editor (read/edit), vie
 ```json
 {
   "tasklist_guid": "cc371766-6584-cf50-a222-c22cd9055004",
-  "members": [{ "id": "ou_xxx", "type": "user", "role": "viewer" }],
-  "user_id_type": "open_id"
-}
-```
-
-## Create Comment
-
-```json
-{
-  "task_guid": "e297ddff-06ca-4166-b917-4ce57cd3a7a0",
-  "content": "Looks good to me",
-  "user_id_type": "open_id"
-}
-```
-
-## Upload Attachment (file_path)
-
-```json
-{
-  "task_guid": "e297ddff-06ca-4166-b917-4ce57cd3a7a0",
-  "file_path": "/path/to/report.pdf",
-  "user_id_type": "open_id"
-}
-```
-
-## Upload Attachment (file_url)
-
-```json
-{
-  "task_guid": "e297ddff-06ca-4166-b917-4ce57cd3a7a0",
-  "file_url": "https://oss-example.com/bucket/report.pdf",
-  "filename": "report.pdf",
+  "members": [{ "id": "ou_xxxxxxxxxxxxxxxx", "type": "user", "role": "viewer" }],
   "user_id_type": "open_id"
 }
 ```
