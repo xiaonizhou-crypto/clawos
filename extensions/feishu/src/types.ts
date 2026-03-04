@@ -79,6 +79,8 @@ export type FeishuToolsConfig = {
   drive?: boolean;
   perm?: boolean;
   scopes?: boolean;
+  task?: boolean;
+  urgent?: boolean;
 };
 
 export type DynamicAgentCreationConfig = {

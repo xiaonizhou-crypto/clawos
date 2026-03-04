@@ -12,6 +12,8 @@ export const DEFAULT_TOOLS_CONFIG: Required<FeishuToolsConfig> = {
   drive: true,
   perm: false,
   scopes: true,
+  task: true,
+  urgent: true,
 };
 
 /**
