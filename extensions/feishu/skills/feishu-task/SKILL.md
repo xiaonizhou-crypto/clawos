@@ -44,6 +44,7 @@ Tools:
 - Attachment upload supports local `file_path` and remote `file_url`. Remote URLs are fetched with runtime media safety checks and size limit (`mediaMaxMb`).
 - Keep tasklist owner as the bot. Add users as members to avoid losing bot access.
 - Use tasklist tools for tasklist membership changes; do not use `feishu_task_update` to move tasks between tasklists.
+- **Timestamps must be UTC milliseconds (13-digit string).** The Feishu API expects UTC. Always convert the user's local time to UTC before passing. Example: if the user is in Asia/Shanghai (UTC+8) and says "7pm tonight", subtract 8 hours → pass UTC 11:00am as the timestamp. Use the session's current time context to calculate the correct UTC value.
 
 ## Create Task
 
