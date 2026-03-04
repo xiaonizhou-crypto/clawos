@@ -95,7 +95,21 @@ engines:
     shortcut: pypi
     disabled: false
 
-  # ========== 被墙引擎 - 全部禁用 ==========
+  # ========== 中国大陆不可用引擎 - 全部禁用 ==========
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: wp
+    disabled: true
+
+  - name: startpage
+    engine: startpage
+    shortcut: sp
+    disabled: true
+
+  - name: wikidata
+    engine: wikidata
+    shortcut: wd
+    disabled: true
   - name: google
     engine: google
     shortcut: g
