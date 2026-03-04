@@ -809,6 +809,40 @@ async function createDoc(
   };
 }
 
+async function createAndWriteDoc(
+  client: Lark.Client,
+  title: string,
+  content: string,
+  folderToken?: string,
+  grantToRequester?: boolean,
+  requesterOpenId?: string,
+  maxBytes?: number,
+  logger?: Logger,
+): Promise<{ doc_token: string; url: string; write_error?: string }> {
+  // Create the document first using the existing createDoc helper
+  const created = await createDoc(client, title, folderToken, {
+    grantToRequester,
+    requesterOpenId,
+  });
+  const docToken = created.document_id;
+  const url = created.url;
+
+  // Write content
+  try {
+    const { blocks, firstLevelBlockIds } = await chunkedConvertMarkdown(client, content);
+    const sorted = sortBlocksByFirstLevel(blocks, firstLevelBlockIds);
+    const { children: inserted } =
+      blocks.length > BATCH_SIZE
+        ? await insertBlocksInBatches(client, docToken, sorted, firstLevelBlockIds, logger)
+        : await insertBlocksWithDescendant(client, docToken, sorted, firstLevelBlockIds);
+    await processImages(client, docToken, content, inserted, maxBytes ?? 30 * 1024 * 1024);
+  } catch (e) {
+    return { doc_token: docToken, url, write_error: String(e) };
+  }
+
+  return { doc_token: docToken, url };
+}
+
 async function writeDoc(
   client: Lark.Client,
   docToken: string,
@@ -1085,6 +1119,72 @@ async function writeTableCells(
   };
 }
 
+async function readTableCells(
+  client: Lark.Client,
+  docToken: string,
+  tableBlockId: string,
+): Promise<{ values: string[][]; row_size: number; column_size: number; merge_info?: unknown[] }> {
+  // Get the table block to determine dimensions
+  const tableRes = await client.docx.documentBlock.get({
+    path: { document_id: docToken, block_id: tableBlockId },
+  });
+  if (tableRes.code !== 0) {
+    throw new Error(tableRes.msg);
+  }
+  const tableBlock = tableRes.data?.block;
+  if (!tableBlock || tableBlock.block_type !== 31) {
+    throw new Error(`Block ${tableBlockId} is not a Table block (type 31)`);
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK block payload
+  const tableData = (tableBlock as any).table;
+  const rowSize = tableData?.rows ?? tableData?.property?.row_size ?? 0;
+  const columnSize = tableData?.columns ?? tableData?.property?.column_size ?? 0;
+  const mergeInfo: unknown[] = tableData?.merge_info ?? [];
+
+  // Get all children (TableCell blocks)
+  const childrenRes = await client.docx.documentBlockChildren.get({
+    path: { document_id: docToken, block_id: tableBlockId },
+    params: { page_size: 500 },
+  });
+  if (childrenRes.code !== 0) {
+    throw new Error(childrenRes.msg);
+  }
+  const cellBlocks = childrenRes.data?.items ?? [];
+
+  // Initialize 2D array with empty strings
+  const values: string[][] = Array.from({ length: rowSize }, () =>
+    Array<string>(columnSize).fill(""),
+  );
+
+  // Extract text from each cell
+  for (let i = 0; i < cellBlocks.length; i++) {
+    const row = Math.floor(i / columnSize);
+    const col = i % columnSize;
+    if (row >= rowSize || col >= columnSize) break;
+
+    const cellBlock = cellBlocks[i];
+    const cellChildrenRes = await client.docx.documentBlockChildren.get({
+      path: { document_id: docToken, block_id: cellBlock.block_id! },
+      params: { page_size: 50 },
+    });
+    if (cellChildrenRes.code !== 0) continue;
+
+    const textParts: string[] = [];
+    for (const textBlock of cellChildrenRes.data?.items ?? []) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK block payload
+      const elements = (textBlock as any).text?.elements ?? [];
+      for (const el of elements) {
+        if (el.text_run?.content) {
+          textParts.push(el.text_run.content);
+        }
+      }
+    }
+    values[row][col] = textParts.join("");
+  }
+
+  return { values, row_size: rowSize, column_size: columnSize, merge_info: mergeInfo };
+}
+
 async function createTableWithValues(
   client: Lark.Client,
   docToken: string,
@@ -1224,6 +1324,82 @@ async function listAppScopes(client: Lark.Client) {
   };
 }
 
+async function listComments(
+  client: Lark.Client,
+  docToken: string,
+  pageSize?: number,
+  pageToken?: string,
+) {
+  const res = await client.drive.fileComment.list({
+    path: { file_token: docToken },
+    params: {
+      file_type: "docx",
+      page_size: pageSize ?? 50,
+      ...(pageToken ? { page_token: pageToken } : {}),
+    },
+  });
+  if (res.code !== 0) {
+    throw new Error(res.msg);
+  }
+  return {
+    comments: res.data?.items ?? [],
+    page_token: res.data?.page_token,
+    has_more: res.data?.has_more ?? false,
+  };
+}
+
+async function getComment(client: Lark.Client, docToken: string, commentId: string) {
+  const res = await client.drive.fileComment.get({
+    path: { file_token: docToken, comment_id: commentId },
+    params: { file_type: "docx" },
+  });
+  if (res.code !== 0) {
+    throw new Error(res.msg);
+  }
+  return res.data;
+}
+
+async function createComment(client: Lark.Client, docToken: string, content: string) {
+  const res = await client.drive.fileComment.create({
+    path: { file_token: docToken },
+    params: { file_type: "docx" },
+    data: {
+      reply_list: {
+        replies: [{ content: { elements: [{ type: "text_run", text_run: { text: content } }] } }],
+      },
+    },
+  });
+  if (res.code !== 0) {
+    throw new Error(res.msg);
+  }
+  return { comment_id: res.data?.comment_id };
+}
+
+async function listCommentReplies(
+  client: Lark.Client,
+  docToken: string,
+  commentId: string,
+  pageSize?: number,
+  pageToken?: string,
+) {
+  const res = await client.drive.fileCommentReply.list({
+    path: { file_token: docToken, comment_id: commentId },
+    params: {
+      file_type: "docx",
+      page_size: pageSize ?? 50,
+      ...(pageToken ? { page_token: pageToken } : {}),
+    },
+  });
+  if (res.code !== 0) {
+    throw new Error(res.msg);
+  }
+  return {
+    replies: res.data?.items ?? [],
+    page_token: res.data?.page_token,
+    has_more: res.data?.has_more ?? false,
+  };
+}
+
 // ============ Tool Registration ============
 
 export function registerFeishuDocTools(api: OpenClawPluginApi) {
@@ -1268,7 +1444,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
           name: "feishu_doc",
           label: "Feishu Doc",
           description:
-            "Feishu document operations. Actions: read, write, append, insert, create, list_blocks, get_block, update_block, delete_block, create_table, write_table_cells, create_table_with_values, insert_table_row, insert_table_column, delete_table_rows, delete_table_columns, merge_table_cells, upload_image, upload_file, color_text",
+            "Feishu document operations. Actions: read, write, append, insert, create, create_and_write, list_blocks, get_block, update_block, delete_block, create_table, write_table_cells, create_table_with_values, read_table_cells, insert_table_row, insert_table_column, delete_table_rows, delete_table_columns, merge_table_cells, upload_image, upload_file, color_text, list_comments, get_comment, create_comment, list_comment_replies",
           parameters: FeishuDocSchema,
           async execute(_toolCallId, params) {
             const p = params as FeishuDocExecuteParams;
@@ -1276,13 +1452,13 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
               const client = getClient(p, defaultAccountId);
               switch (p.action) {
                 case "read":
-                  return json(await readDoc(client, p.doc_token));
+                  return json(await readDoc(client, p.doc_token!));
                 case "write":
                   return json(
                     await writeDoc(
                       client,
-                      p.doc_token,
-                      p.content,
+                      p.doc_token!,
+                      p.content!,
                       getMediaMaxBytes(p, defaultAccountId),
                       api.logger,
                     ),
@@ -1291,8 +1467,8 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                   return json(
                     await appendDoc(
                       client,
-                      p.doc_token,
-                      p.content,
+                      p.doc_token!,
+                      p.content!,
                       getMediaMaxBytes(p, defaultAccountId),
                       api.logger,
                     ),
@@ -1301,51 +1477,78 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                   return json(
                     await insertDoc(
                       client,
-                      p.doc_token,
-                      p.content,
-                      p.after_block_id,
+                      p.doc_token!,
+                      p.content!,
+                      p.after_block_id!,
                       getMediaMaxBytes(p, defaultAccountId),
                       api.logger,
                     ),
                   );
                 case "create":
                   return json(
-                    await createDoc(client, p.title, p.folder_token, {
+                    await createDoc(client, p.title!, p.folder_token, {
                       grantToRequester: p.grant_to_requester,
                       requesterOpenId: trustedRequesterOpenId,
                     }),
                   );
+                case "create_and_write": {
+                  if (!p.title || !p.content) {
+                    return json({
+                      error: "Action 'create_and_write' requires: title, content",
+                    });
+                  }
+                  return json(
+                    await createAndWriteDoc(
+                      client,
+                      p.title,
+                      p.content,
+                      p.folder_token,
+                      p.grant_to_requester,
+                      trustedRequesterOpenId,
+                      getMediaMaxBytes(p, defaultAccountId),
+                      api.logger,
+                    ),
+                  );
+                }
                 case "list_blocks":
-                  return json(await listBlocks(client, p.doc_token));
+                  return json(await listBlocks(client, p.doc_token!));
                 case "get_block":
-                  return json(await getBlock(client, p.doc_token, p.block_id));
+                  return json(await getBlock(client, p.doc_token!, p.block_id!));
                 case "update_block":
-                  return json(await updateBlock(client, p.doc_token, p.block_id, p.content));
+                  return json(await updateBlock(client, p.doc_token!, p.block_id!, p.content!));
                 case "delete_block":
-                  return json(await deleteBlock(client, p.doc_token, p.block_id));
+                  return json(await deleteBlock(client, p.doc_token!, p.block_id!));
                 case "create_table":
                   return json(
                     await createTable(
                       client,
-                      p.doc_token,
-                      p.row_size,
-                      p.column_size,
+                      p.doc_token!,
+                      p.row_size!,
+                      p.column_size!,
                       p.parent_block_id,
                       p.column_width,
                     ),
                   );
                 case "write_table_cells":
                   return json(
-                    await writeTableCells(client, p.doc_token, p.table_block_id, p.values),
+                    await writeTableCells(client, p.doc_token!, p.table_block_id!, p.values!),
                   );
+                case "read_table_cells": {
+                  if (!p.doc_token || !p.table_block_id) {
+                    return json({
+                      error: "Action 'read_table_cells' requires: doc_token, table_block_id",
+                    });
+                  }
+                  return json(await readTableCells(client, p.doc_token, p.table_block_id));
+                }
                 case "create_table_with_values":
                   return json(
                     await createTableWithValues(
                       client,
-                      p.doc_token,
-                      p.row_size,
-                      p.column_size,
-                      p.values,
+                      p.doc_token!,
+                      p.row_size!,
+                      p.column_size!,
+                      p.values!,
                       p.parent_block_id,
                       p.column_width,
                     ),
@@ -1354,7 +1557,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                   return json(
                     await uploadImageBlock(
                       client,
-                      p.doc_token,
+                      p.doc_token!,
                       getMediaMaxBytes(p, defaultAccountId),
                       p.url,
                       p.file_path,
@@ -1368,7 +1571,7 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                   return json(
                     await uploadFileBlock(
                       client,
-                      p.doc_token,
+                      p.doc_token!,
                       getMediaMaxBytes(p, defaultAccountId),
                       p.url,
                       p.file_path,
@@ -1377,20 +1580,20 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                     ),
                   );
                 case "color_text":
-                  return json(await updateColorText(client, p.doc_token, p.block_id, p.content));
+                  return json(await updateColorText(client, p.doc_token!, p.block_id!, p.content!));
                 case "insert_table_row":
-                  return json(await insertTableRow(client, p.doc_token, p.block_id, p.row_index));
+                  return json(await insertTableRow(client, p.doc_token!, p.block_id!, p.row_index));
                 case "insert_table_column":
                   return json(
-                    await insertTableColumn(client, p.doc_token, p.block_id, p.column_index),
+                    await insertTableColumn(client, p.doc_token!, p.block_id!, p.column_index),
                   );
                 case "delete_table_rows":
                   return json(
                     await deleteTableRows(
                       client,
-                      p.doc_token,
-                      p.block_id,
-                      p.row_start,
+                      p.doc_token!,
+                      p.block_id!,
+                      p.row_start!,
                       p.row_count,
                     ),
                   );
@@ -1398,9 +1601,9 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                   return json(
                     await deleteTableColumns(
                       client,
-                      p.doc_token,
-                      p.block_id,
-                      p.column_start,
+                      p.doc_token!,
+                      p.block_id!,
+                      p.column_start!,
                       p.column_count,
                     ),
                   );
@@ -1408,20 +1611,71 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                   return json(
                     await mergeTableCells(
                       client,
-                      p.doc_token,
-                      p.block_id,
-                      p.row_start,
-                      p.row_end,
-                      p.column_start,
-                      p.column_end,
+                      p.doc_token!,
+                      p.block_id!,
+                      p.row_start!,
+                      p.row_end!,
+                      p.column_start!,
+                      p.column_end!,
                     ),
                   );
+                case "list_comments": {
+                  if (!p.doc_token) {
+                    return json({ error: "Action 'list_comments' requires: doc_token" });
+                  }
+                  return json(await listComments(client, p.doc_token, p.page_size, p.page_token));
+                }
+                case "get_comment": {
+                  if (!p.doc_token || !p.comment_id) {
+                    return json({ error: "Action 'get_comment' requires: doc_token, comment_id" });
+                  }
+                  return json(await getComment(client, p.doc_token, p.comment_id));
+                }
+                case "create_comment": {
+                  if (!p.doc_token || !p.content) {
+                    return json({ error: "Action 'create_comment' requires: doc_token, content" });
+                  }
+                  return json(await createComment(client, p.doc_token, p.content));
+                }
+                case "list_comment_replies": {
+                  if (!p.doc_token || !p.comment_id) {
+                    return json({
+                      error: "Action 'list_comment_replies' requires: doc_token, comment_id",
+                    });
+                  }
+                  return json(
+                    await listCommentReplies(
+                      client,
+                      p.doc_token,
+                      p.comment_id,
+                      p.page_size,
+                      p.page_token,
+                    ),
+                  );
+                }
                 default:
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- exhaustive check fallback
                   return json({ error: `Unknown action: ${(p as any).action}` });
               }
             } catch (err) {
-              return json({ error: err instanceof Error ? err.message : String(err) });
+              const msg = err instanceof Error ? err.message : String(err);
+              const tableActions = new Set([
+                "insert_table_row",
+                "insert_table_column",
+                "delete_table_rows",
+                "delete_table_columns",
+                "merge_table_cells",
+              ]);
+              if (
+                tableActions.has(p.action) &&
+                (msg.includes("1770029") || msg.toLowerCase().includes("table"))
+              ) {
+                return json({
+                  error: msg,
+                  hint: "Table operation failed. Do NOT delete and recreate the table. Instead: (1) use read_table_cells to check current state, (2) try write_table_cells for content updates, (3) try smaller atomic operations one row/column at a time.",
+                });
+              }
+              return json({ error: msg });
             }
           },
         };
