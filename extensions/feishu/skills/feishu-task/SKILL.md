@@ -62,15 +62,15 @@ The Feishu API requires **UTC milliseconds** (13-digit string). Follow this exac
 
 The `timestamp` in Conversation info is the **ONLY** source of truth for the current date and time. **Do NOT use your internal training knowledge of today's date — it is stale and will produce timestamps months in the past.**
 
+The `timestamp` field is a human-readable string in the format:
+
 ```
-Conversation info:
-{
-  "timestamp": "2026-03-04T12:34:56Z",  ← parse this to get current UTC datetime
-  ...
-}
+"Tue 2026-03-04 20:34 CST"
+ ^^^           ^^^^ ^^^ ^^^
+ weekday       time  timezone-abbreviation
 ```
 
-Convert to CST (Asia/Shanghai, UTC+8) to get the user's local current date and time.
+Parse this string to extract the current date, time, and timezone. The timezone abbreviation (e.g. `CST`, `UTC`) tells you what timezone the time is in. Use this to determine the user's current local date and time.
 
 #### 2b. Interpret the user's time expression in local time (CST)
 
@@ -87,11 +87,13 @@ Convert to CST (Asia/Shanghai, UTC+8) to get the user's local current date and t
 
 Subtract 8 hours (CST → UTC), then compute Unix milliseconds.
 
-**Worked example**: `timestamp` in Conversation info resolves to 2026-03-04 20:00 CST (current local time)
+**Worked example**: Conversation info contains `"timestamp": "Tue 2026-03-04 20:00 CST"` → current local time is 2026-03-04 20:00 CST
 
-- User says "7点45" → evening context → interpret as **19:45 CST today** (March 4)
-- 2026-03-04 19:45 CST = 2026-03-04 11:45 UTC = `1741088700000`
-- Pass `"timestamp": "1741088700000"` to the API
+- User says "7点45" → evening context (current hour = 20) → interpret as **19:45 CST today** (March 4)
+- 2026-03-04 19:45 CST = 2026-03-04 11:45 UTC = `1772624700000`
+- Pass `"timestamp": "1772624700000"` to the API
+
+**Sanity check (MANDATORY)**: `2026-01-01 00:00 UTC = 1767225600000`. Any timestamp for a 2026 due date **must be greater than 1767225600000**. If your computed value is less than this, you made a year-off error — recompute from scratch using only the conversation timestamp.
 
 **Never** pass local time directly as UTC. Doing so causes an 8-hour offset error.
 
@@ -115,7 +117,7 @@ Subtract 8 hours (CST → UTC), then compute Unix milliseconds.
 {
   "summary": "Quarterly review",
   "description": "Prepare review notes",
-  "due": { "timestamp": "1740699900000", "is_all_day": false },
+  "due": { "timestamp": "1772629200000", "is_all_day": false },
   "members": [{ "id": "ou_xxxxxxxxxxxxxxxx", "role": "assignee", "type": "user" }],
   "user_id_type": "open_id"
 }
@@ -128,7 +130,7 @@ Subtract 8 hours (CST → UTC), then compute Unix milliseconds.
   "task_guid": "e297ddff-06ca-4166-b917-4ce57cd3a7a0",
   "summary": "Draft report outline",
   "description": "Collect key metrics",
-  "due": { "timestamp": "1740699900000", "is_all_day": false },
+  "due": { "timestamp": "1772629200000", "is_all_day": false },
   "members": [{ "id": "ou_xxxxxxxxxxxxxxxx", "role": "assignee", "type": "user" }],
   "user_id_type": "open_id"
 }
