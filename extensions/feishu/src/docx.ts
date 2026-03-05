@@ -1256,23 +1256,36 @@ async function deleteBlock(client: Lark.Client, docToken: string, blockId: strin
 
   const parentId = blockInfo.data?.block?.parent_id ?? docToken;
 
-  const children = await client.docx.documentBlockChildren.get({
-    path: { document_id: docToken, block_id: parentId },
-  });
-  if (children.code !== 0) {
-    throw new Error(children.msg);
-  }
+  // Paginate through all children to find the absolute index of the target block
+  let absoluteIndex = -1;
+  let offset = 0;
+  let pageToken: string | undefined;
+  do {
+    const children = await client.docx.documentBlockChildren.get({
+      path: { document_id: docToken, block_id: parentId },
+      params: { page_size: 50, ...(pageToken ? { page_token: pageToken } : {}) },
+    });
+    if (children.code !== 0) {
+      throw new Error(children.msg);
+    }
+    const items = children.data?.items ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK block type
+    const localIndex = items.findIndex((item: any) => item.block_id === blockId);
+    if (localIndex !== -1) {
+      absoluteIndex = offset + localIndex;
+      break;
+    }
+    offset += items.length;
+    pageToken = children.data?.page_token;
+  } while (pageToken);
 
-  const items = children.data?.items ?? [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK block type
-  const index = items.findIndex((item: any) => item.block_id === blockId);
-  if (index === -1) {
+  if (absoluteIndex === -1) {
     throw new Error("Block not found");
   }
 
   const res = await client.docx.documentBlockChildren.batchDelete({
     path: { document_id: docToken, block_id: parentId },
-    data: { start_index: index, end_index: index + 1 },
+    data: { start_index: absoluteIndex, end_index: absoluteIndex + 1 },
   });
   if (res.code !== 0) {
     throw new Error(res.msg);
@@ -1282,15 +1295,23 @@ async function deleteBlock(client: Lark.Client, docToken: string, blockId: strin
 }
 
 async function listBlocks(client: Lark.Client, docToken: string) {
-  const res = await client.docx.documentBlock.list({
-    path: { document_id: docToken },
-  });
-  if (res.code !== 0) {
-    throw new Error(res.msg);
-  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK block type
+  const allItems: any[] = [];
+  let pageToken: string | undefined;
+  do {
+    const res = await client.docx.documentBlock.list({
+      path: { document_id: docToken },
+      params: { page_size: 50, ...(pageToken ? { page_token: pageToken } : {}) },
+    });
+    if (res.code !== 0) {
+      throw new Error(res.msg);
+    }
+    allItems.push(...(res.data?.items ?? []));
+    pageToken = res.data?.page_token;
+  } while (pageToken);
 
   return {
-    blocks: res.data?.items ?? [],
+    blocks: allItems,
   };
 }
 
