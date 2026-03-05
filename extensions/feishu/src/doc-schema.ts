@@ -3,7 +3,7 @@ import { Type, type Static } from "@sinclair/typebox";
 export const FeishuDocSchema = Type.Object({
   action: Type.String({
     description:
-      "Action to perform: read | write | append | insert | create | create_and_write | list_blocks | get_block | update_block | delete_block | create_table | write_table_cells | create_table_with_values | read_table_cells | insert_table_row | insert_table_column | delete_table_rows | delete_table_columns | merge_table_cells | upload_image | upload_file | color_text | list_comments | get_comment | create_comment | list_comment_replies",
+      "Action to perform: read | write | append | insert | create | create_and_write | list_blocks | get_block | update_block | delete_block | delete_blocks | create_table | write_table_cells | create_table_with_values | read_table_cells | insert_table_row | insert_table_column | delete_table_rows | delete_table_columns | merge_table_cells | upload_image | upload_file | color_text | list_comments | get_comment | create_comment | list_comment_replies",
   }),
   doc_token: Type.Optional(
     Type.String({
@@ -32,6 +32,11 @@ export const FeishuDocSchema = Type.Object({
     Type.String({
       description:
         "Block ID (for get_block/update_block/delete_block/color_text/insert_table_row/insert_table_column/delete_table_rows/delete_table_columns/merge_table_cells)",
+    }),
+  ),
+  block_ids: Type.Optional(
+    Type.Array(Type.String(), {
+      description: "Array of block IDs to delete (for delete_blocks)",
     }),
   ),
   after_block_id: Type.Optional(

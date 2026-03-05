@@ -1246,10 +1246,39 @@ async function updateBlock(
   return { success: true, block_id: blockId };
 }
 
+const feishuSleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Retry wrapper for Feishu API calls that may hit rate limits (code 99991400)
+async function feishuRetry<T>(fn: () => Promise<T>, maxRetries = 3): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      // SDK throws Axios errors for HTTP 400; rate limit code is in response data
+      const errObj = err as Record<string, unknown>;
+      const respData = (errObj?.response as Record<string, unknown>)?.data as
+        | Record<string, unknown>
+        | undefined;
+      const isRateLimit =
+        respData?.code === 99991400 ||
+        (err instanceof Error &&
+          (err.message.includes("frequency limit") || err.message.includes("99991400")));
+      if (isRateLimit && attempt < maxRetries) {
+        await feishuSleep(1000 * (attempt + 1)); // 1s, 2s, 3s backoff
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("unreachable");
+}
+
 async function deleteBlock(client: Lark.Client, docToken: string, blockId: string) {
-  const blockInfo = await client.docx.documentBlock.get({
-    path: { document_id: docToken, block_id: blockId },
-  });
+  const blockInfo = await feishuRetry(() =>
+    client.docx.documentBlock.get({
+      path: { document_id: docToken, block_id: blockId },
+    }),
+  );
   if (blockInfo.code !== 0) {
     throw new Error(blockInfo.msg);
   }
@@ -1261,10 +1290,12 @@ async function deleteBlock(client: Lark.Client, docToken: string, blockId: strin
   let offset = 0;
   let pageToken: string | undefined;
   do {
-    const children = await client.docx.documentBlockChildren.get({
-      path: { document_id: docToken, block_id: parentId },
-      params: { page_size: 50, ...(pageToken ? { page_token: pageToken } : {}) },
-    });
+    const children = await feishuRetry(() =>
+      client.docx.documentBlockChildren.get({
+        path: { document_id: docToken, block_id: parentId },
+        ...(pageToken ? { params: { page_token: pageToken } } : {}),
+      }),
+    );
     if (children.code !== 0) {
       throw new Error(children.msg);
     }
@@ -1277,16 +1308,19 @@ async function deleteBlock(client: Lark.Client, docToken: string, blockId: strin
     }
     offset += items.length;
     pageToken = children.data?.page_token;
+    if (pageToken) await feishuSleep(200); // avoid rate limiting between pages
   } while (pageToken);
 
   if (absoluteIndex === -1) {
     throw new Error("Block not found");
   }
 
-  const res = await client.docx.documentBlockChildren.batchDelete({
-    path: { document_id: docToken, block_id: parentId },
-    data: { start_index: absoluteIndex, end_index: absoluteIndex + 1 },
-  });
+  const res = await feishuRetry(() =>
+    client.docx.documentBlockChildren.batchDelete({
+      path: { document_id: docToken, block_id: parentId },
+      data: { start_index: absoluteIndex, end_index: absoluteIndex + 1 },
+    }),
+  );
   if (res.code !== 0) {
     throw new Error(res.msg);
   }
@@ -1294,20 +1328,48 @@ async function deleteBlock(client: Lark.Client, docToken: string, blockId: strin
   return { success: true, deleted_block_id: blockId };
 }
 
+async function deleteBlocks(client: Lark.Client, docToken: string, blockIds: string[]) {
+  const results: Array<{ block_id: string; success: boolean; error?: string }> = [];
+  for (let i = 0; i < blockIds.length; i++) {
+    const id = blockIds[i];
+    try {
+      await deleteBlock(client, docToken, id);
+      results.push({ block_id: id, success: true });
+    } catch (err) {
+      results.push({
+        block_id: id,
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    // Delay between deletions to avoid rate limiting
+    if (i < blockIds.length - 1) await feishuSleep(500);
+  }
+  return {
+    total: blockIds.length,
+    deleted: results.filter((r) => r.success).length,
+    failed: results.filter((r) => !r.success).length,
+    results,
+  };
+}
+
 async function listBlocks(client: Lark.Client, docToken: string) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- SDK block type
   const allItems: any[] = [];
   let pageToken: string | undefined;
   do {
-    const res = await client.docx.documentBlock.list({
-      path: { document_id: docToken },
-      params: { page_size: 50, ...(pageToken ? { page_token: pageToken } : {}) },
-    });
+    const res = await feishuRetry(() =>
+      client.docx.documentBlock.list({
+        path: { document_id: docToken },
+        ...(pageToken ? { params: { page_token: pageToken } } : {}),
+      }),
+    );
     if (res.code !== 0) {
       throw new Error(res.msg);
     }
     allItems.push(...(res.data?.items ?? []));
     pageToken = res.data?.page_token;
+    if (pageToken) await feishuSleep(200); // avoid rate limiting between pages
   } while (pageToken);
 
   return {
@@ -1539,6 +1601,8 @@ export function registerFeishuDocTools(api: OpenClawPluginApi) {
                   return json(await updateBlock(client, p.doc_token!, p.block_id!, p.content!));
                 case "delete_block":
                   return json(await deleteBlock(client, p.doc_token!, p.block_id!));
+                case "delete_blocks":
+                  return json(await deleteBlocks(client, p.doc_token!, p.block_ids!));
                 case "create_table":
                   return json(
                     await createTable(
