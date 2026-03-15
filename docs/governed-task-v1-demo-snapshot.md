@@ -40,7 +40,7 @@ This is the current demo snapshot for the first governed-task loop inside clawOS
 - No planner auto re-plan after reject
 - No Feishu-side approve/reject commands
 - No advanced classifier
-- No theme pack UI integration yet
+- Theme pack UI integration is intentionally minimal and only exists in governed-task UI (`default` + `celestial-court`)
 - No new pages beyond the current `Tasks` page
 - No fully verified local build in this environment yet
 

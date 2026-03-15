@@ -18,12 +18,47 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="MIT License"></a>
 </p>
 
-**OpenClaw** is a _personal AI assistant_ you run on your own devices.
-It answers you on the channels you already use (WhatsApp, Telegram, Slack, Discord, Google Chat, Signal, iMessage, BlueBubbles, IRC, Microsoft Teams, Matrix, Feishu, LINE, Mattermost, Nextcloud Talk, Nostr, Synology Chat, Tlon, Twitch, Zalo, Zalo Personal, WebChat). It can speak and listen on macOS/iOS/Android, and can render a live Canvas you control. The Gateway is just the control plane — the product is the assistant.
+**OpenClaw** is an **Agent OS / control plane** for running assistants and governed multi-agent workflows on your own devices.
 
-If you want a personal, single-user assistant that feels local, fast, and always-on, this is it.
+This snapshot focuses on one concrete direction:
+
+> **governed-task v1** — Feishu message → task creation → approval queue → approve/reject → state change → Feishu notify.
+
+That means this repo is not only a chat assistant anymore. It is also starting to expose a neutral governance kernel for task lifecycle management.
+
+**One-line positioning:**
+A neutral agent governance kernel with channel-connected task intake, human approval gates, and theme-pack-based narrative skins.
 
 [Website](https://openclaw.ai) · [Docs](https://docs.openclaw.ai) · [Vision](VISION.md) · [DeepWiki](https://deepwiki.com/openclaw/openclaw) · [Getting Started](https://docs.openclaw.ai/start/getting-started) · [Updating](https://docs.openclaw.ai/install/updating) · [Showcase](https://docs.openclaw.ai/start/showcase) · [FAQ](https://docs.openclaw.ai/help/faq) · [Wizard](https://docs.openclaw.ai/start/wizard) · [Nix](https://github.com/openclaw/nix-openclaw) · [Docker](https://docs.openclaw.ai/install/docker) · [Discord](https://discord.gg/clawd)
+
+## Governed-task v1 snapshot
+
+Current v1 demo scope:
+
+- Feishu inbound split into `reply-only` vs `governed-task`
+- governed task creation from Feishu inbound
+- Control UI `Tasks` tab + `Approval Queue`
+- approve / reject from Control UI
+- real state transitions for approval decisions
+- Feishu text notification after approval decision
+- task audit timeline including notification delivery outcome
+
+Current v1 demo path:
+
+1. Send a high-risk task request in Feishu
+2. Create a governed task
+3. Show the task in `Tasks` and `Approval Queue`
+4. Approve or reject in Control UI
+5. Show state change and timeline update
+6. Show Feishu decision notification
+
+Out of scope for this snapshot:
+
+- runtime auto execution
+- planner auto re-plan
+- Feishu-side approve/reject commands
+- advanced classifier logic
+- large theme-system rollout beyond governed-task UI
 
 ## Theme packs: one kernel, many worlds
 
@@ -54,7 +89,7 @@ Theme packs must **not** change:
 ### Current supported themes
 
 - **default** — neutral control-plane naming for governed tasks
-- **celestial-court** — a celestial governance skin on the same kernel
+- **celestial-court** — a celestial governance skin on the same kernel, currently wired into governed-task UI
 
 ### Planned themes
 
