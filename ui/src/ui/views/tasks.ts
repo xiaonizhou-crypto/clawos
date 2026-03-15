@@ -10,9 +10,12 @@ export type TasksProps = {
   selectedId: string | null;
   detailLoading: boolean;
   detail: TasksGetResult | null;
+  decisionBusy?: boolean;
   onQueryChange: (next: string) => void;
   onRefresh: () => void;
   onSelect: (taskId: string) => void;
+  onApprove: (taskId: string) => void;
+  onReject: (taskId: string) => void;
 };
 
 function renderRiskPill(task: GovernedTask) {
@@ -52,7 +55,13 @@ function renderTaskRow(task: GovernedTask, selectedId: string | null, onSelect: 
   `;
 }
 
-function renderDetail(detail: TasksGetResult | null, loading: boolean) {
+function renderDetail(
+  detail: TasksGetResult | null,
+  loading: boolean,
+  decisionBusy: boolean | undefined,
+  onApprove: (taskId: string) => void,
+  onReject: (taskId: string) => void,
+) {
   if (loading) {
     return html`<section class="card"><div class="muted">Loading task detail…</div></section>`;
   }
@@ -68,10 +77,24 @@ function renderDetail(detail: TasksGetResult | null, loading: boolean) {
           <div class="card-title" style="margin-top: 8px;">${task.title}</div>
           <div class="card-sub" style="margin-top: 6px;">${task.sourceChannel} · owner ${task.currentOwner}</div>
         </div>
-        <div class="row" style="gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
-          ${renderRiskPill(task)}
-          ${renderStatePill(task)}
-          <span class="pill">approval: ${task.approvalStatus}</span>
+        <div>
+          <div class="row" style="gap: 8px; flex-wrap: wrap; justify-content: flex-end;">
+            ${renderRiskPill(task)}
+            ${renderStatePill(task)}
+            <span class="pill">approval: ${task.approvalStatus}</span>
+          </div>
+          ${
+            task.state === "awaiting_human"
+              ? html`<div class="row" style="gap: 8px; margin-top: 10px; justify-content: flex-end;">
+                  <button class="btn primary" ?disabled=${decisionBusy} @click=${() => onApprove(task.id)}>
+                    ${decisionBusy ? "Working…" : "Approve"}
+                  </button>
+                  <button class="btn" ?disabled=${decisionBusy} @click=${() => onReject(task.id)}>
+                    Reject
+                  </button>
+                </div>`
+              : nothing
+          }
         </div>
       </div>
 
@@ -153,23 +176,31 @@ export function renderTasks(props: TasksProps) {
               ? html`<div class="muted">No tasks are awaiting human approval.</div>`
               : approvalQueue.map(
                   (task) => html`
-                    <button class="list-item" @click=${() => props.onSelect(task.id)}>
+                    <div class="list-item">
                       <div class="row" style="justify-content: space-between; align-items: flex-start; gap: 12px;">
-                        <div>
-                          <div class="mono" style="font-size: 12px;">${task.id}</div>
-                          <div style="font-weight: 600; margin-top: 4px;">${task.title}</div>
-                        </div>
+                        <button class="btn" @click=${() => props.onSelect(task.id)}>
+                          <span class="mono">${task.id}</span>
+                        </button>
                         ${renderRiskPill(task)}
                       </div>
+                      <div style="font-weight: 600; margin-top: 8px;">${task.title}</div>
                       <div class="muted" style="margin-top: 8px;">owner ${task.currentOwner} · approval ${task.approvalStatus}</div>
-                    </button>
+                      <div class="row" style="gap: 8px; margin-top: 10px;">
+                        <button class="btn primary" ?disabled=${props.decisionBusy} @click=${() => props.onApprove(task.id)}>
+                          ${props.decisionBusy ? "Working…" : "Approve"}
+                        </button>
+                        <button class="btn" ?disabled=${props.decisionBusy} @click=${() => props.onReject(task.id)}>
+                          Reject
+                        </button>
+                      </div>
+                    </div>
                   `,
                 )}
           </div>
         </section>
       </section>
 
-      ${renderDetail(props.detail, props.detailLoading)}
+      ${renderDetail(props.detail, props.detailLoading, props.decisionBusy, props.onApprove, props.onReject)}
     </section>
   `;
 }

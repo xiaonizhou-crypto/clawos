@@ -56,7 +56,7 @@ import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { deleteSessionAndRefresh, loadSessions, patchSession } from "./controllers/sessions.ts";
-import { loadTaskDetail, loadTasks } from "./controllers/tasks.ts";
+import { approveTask, loadTaskDetail, loadTasks, rejectTask } from "./controllers/tasks.ts";
 import {
   installSkill,
   loadSkills,
@@ -452,12 +452,19 @@ export function renderApp(state: AppViewState) {
                 selectedId: state.tasksSelectedId,
                 detailLoading: state.taskDetailLoading,
                 detail: state.taskDetail,
+                decisionBusy: state.tasksDecisionBusy,
                 onQueryChange: (next) => {
                   state.tasksQuery = next;
                 },
                 onRefresh: () => loadTasks(state),
                 onSelect: (taskId) => {
                   void loadTaskDetail(state, taskId);
+                },
+                onApprove: (taskId) => {
+                  void approveTask(state, taskId);
+                },
+                onReject: (taskId) => {
+                  void rejectTask(state, taskId);
                 },
               })
             : nothing

@@ -192,6 +192,8 @@ import {
   GovernedTaskSchema,
   type TasksCreateParams,
   TasksCreateParamsSchema,
+  type TasksDecisionParams,
+  TasksDecisionParamsSchema,
   type TasksGetParams,
   TasksGetParamsSchema,
   type TasksGetResult,
@@ -331,6 +333,7 @@ export const validateTasksListParams = ajv.compile<TasksListParams>(TasksListPar
 export const validateTasksGetParams = ajv.compile<TasksGetParams>(TasksGetParamsSchema);
 export const validateTasksCreateParams = ajv.compile<TasksCreateParams>(TasksCreateParamsSchema);
 export const validateTasksUpdateParams = ajv.compile<TasksUpdateParams>(TasksUpdateParamsSchema);
+export const validateTasksDecisionParams = ajv.compile<TasksDecisionParams>(TasksDecisionParamsSchema);
 export const validateConfigGetParams = ajv.compile<ConfigGetParams>(ConfigGetParamsSchema);
 export const validateConfigSetParams = ajv.compile<ConfigSetParams>(ConfigSetParamsSchema);
 export const validateConfigApplyParams = ajv.compile<ConfigApplyParams>(ConfigApplyParamsSchema);

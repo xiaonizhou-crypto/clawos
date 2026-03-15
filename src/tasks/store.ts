@@ -310,3 +310,49 @@ export function updateGovernedTask(input: {
   saveGovernedTasks(tasks);
   return updated;
 }
+
+export function approveGovernedTask(input: {
+  taskId: string;
+  note?: string;
+  actorId?: string;
+}): GovernedTask | null {
+  return updateGovernedTask({
+    taskId: input.taskId,
+    patch: {
+      approvalStatus: "approved",
+      state: "approved",
+      currentOwner: "dispatcher",
+    },
+    auditEvent: {
+      id: randomUUID(),
+      at: Date.now(),
+      actorKind: "human",
+      actorId: input.actorId?.trim() || "operator",
+      type: "approval.granted",
+      summary: input.note?.trim() || "Task approved from control UI.",
+    },
+  });
+}
+
+export function rejectGovernedTask(input: {
+  taskId: string;
+  note?: string;
+  actorId?: string;
+}): GovernedTask | null {
+  return updateGovernedTask({
+    taskId: input.taskId,
+    patch: {
+      approvalStatus: "rejected",
+      state: "planned",
+      currentOwner: "planner",
+    },
+    auditEvent: {
+      id: randomUUID(),
+      at: Date.now(),
+      actorKind: "human",
+      actorId: input.actorId?.trim() || "operator",
+      type: "approval.rejected",
+      summary: input.note?.trim() || "Task rejected and returned for revision.",
+    },
+  });
+}

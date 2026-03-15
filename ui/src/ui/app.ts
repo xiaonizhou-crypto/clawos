@@ -255,6 +255,7 @@ export class OpenClawApp extends LitElement {
   @state() tasksSelectedId: string | null = null;
   @state() taskDetailLoading = false;
   @state() taskDetail: TasksGetResult | null = null;
+  @state() tasksDecisionBusy = false;
 
   @state() usageLoading = false;
   @state() usageResult: import("./types.js").SessionsUsageResult | null = null;

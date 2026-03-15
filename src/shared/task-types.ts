@@ -31,6 +31,7 @@ export type TaskAuditEvent = {
     | "review.rejected"
     | "approval.requested"
     | "approval.granted"
+    | "approval.rejected"
     | "task.dispatched"
     | "task.started"
     | "task.blocked"

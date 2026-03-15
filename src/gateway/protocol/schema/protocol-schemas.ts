@@ -143,6 +143,7 @@ import {
 import {
   GovernedTaskSchema,
   TasksCreateParamsSchema,
+  TasksDecisionParamsSchema,
   TasksGetParamsSchema,
   TasksGetResultSchema,
   TasksListParamsSchema,
@@ -211,6 +212,7 @@ export const ProtocolSchemas = {
   TasksGetParams: TasksGetParamsSchema,
   TasksCreateParams: TasksCreateParamsSchema,
   TasksUpdateParams: TasksUpdateParamsSchema,
+  TasksDecisionParams: TasksDecisionParamsSchema,
   TasksListResult: TasksListResultSchema,
   TasksGetResult: TasksGetResultSchema,
   ConfigGetParams: ConfigGetParamsSchema,

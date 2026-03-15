@@ -34,7 +34,21 @@ export const TaskAuditEventSchema = Type.Object(
     at: Type.Integer(),
     actorKind: Type.Union([Type.Literal("system"), Type.Literal("agent"), Type.Literal("human")]),
     actorId: NonEmptyString,
-    type: NonEmptyString,
+    type: Type.Union([
+      Type.Literal("task.created"),
+      Type.Literal("task.classified"),
+      Type.Literal("plan.created"),
+      Type.Literal("review.requested"),
+      Type.Literal("review.approved"),
+      Type.Literal("review.rejected"),
+      Type.Literal("approval.requested"),
+      Type.Literal("approval.granted"),
+      Type.Literal("approval.rejected"),
+      Type.Literal("task.dispatched"),
+      Type.Literal("task.started"),
+      Type.Literal("task.blocked"),
+      Type.Literal("task.completed"),
+    ]),
     summary: NonEmptyString,
   },
   { additionalProperties: false },
@@ -135,6 +149,14 @@ export const TasksUpdateParamsSchema = Type.Object(
   { additionalProperties: false },
 );
 
+export const TasksDecisionParamsSchema = Type.Object(
+  {
+    taskId: NonEmptyString,
+    note: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
 export const TasksListResultSchema = Type.Object(
   {
     path: NonEmptyString,
@@ -174,5 +196,6 @@ export type TasksListParams = Static<typeof TasksListParamsSchema>;
 export type TasksGetParams = Static<typeof TasksGetParamsSchema>;
 export type TasksCreateParams = Static<typeof TasksCreateParamsSchema>;
 export type TasksUpdateParams = Static<typeof TasksUpdateParamsSchema>;
+export type TasksDecisionParams = Static<typeof TasksDecisionParamsSchema>;
 export type TasksListResult = Static<typeof TasksListResultSchema>;
 export type TasksGetResult = Static<typeof TasksGetResultSchema>;

@@ -11,6 +11,7 @@ export type TasksState = {
   tasksSelectedId: string | null;
   taskDetailLoading: boolean;
   taskDetail: TasksGetResult | null;
+  tasksDecisionBusy?: boolean;
 };
 
 export async function loadTasks(state: TasksState) {
@@ -58,4 +59,29 @@ export async function loadTaskDetail(state: TasksState, taskId?: string | null) 
   } finally {
     state.taskDetailLoading = false;
   }
+}
+
+async function decideTask(state: TasksState, method: "tasks.approve" | "tasks.reject", taskId: string, note?: string) {
+  if (!state.client || !state.connected || state.tasksDecisionBusy) {
+    return;
+  }
+  state.tasksDecisionBusy = true;
+  state.tasksError = null;
+  try {
+    await state.client.request(method, { taskId, note });
+    await loadTasks(state);
+    await loadTaskDetail(state, taskId);
+  } catch (err) {
+    state.tasksError = String(err);
+  } finally {
+    state.tasksDecisionBusy = false;
+  }
+}
+
+export async function approveTask(state: TasksState, taskId: string, note?: string) {
+  await decideTask(state, "tasks.approve", taskId, note);
+}
+
+export async function rejectTask(state: TasksState, taskId: string, note?: string) {
+  await decideTask(state, "tasks.reject", taskId, note);
 }

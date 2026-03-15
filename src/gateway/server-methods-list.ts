@@ -62,6 +62,8 @@ const BASE_METHODS = [
   "tasks.get",
   "tasks.create",
   "tasks.update",
+  "tasks.approve",
+  "tasks.reject",
   "last-heartbeat",
   "set-heartbeats",
   "wake",

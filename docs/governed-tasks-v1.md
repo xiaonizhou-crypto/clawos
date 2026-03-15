@@ -56,6 +56,29 @@ For v1 the store is local and intentionally simple:
 
 This keeps the first slice easy to inspect and iterate on before a larger persistence decision.
 
+## Theme-pack rule (important)
+
+Governance logic must stay neutral.
+
+That means:
+
+- roles in logic use neutral names
+- state machine stays neutral
+- approval rules stay neutral
+- dispatch and intake rules stay neutral
+
+Future worldviews (for example `default`, `celestial-court`) must be added as theme packs only.
+They may change:
+
+- role labels
+- icons
+- navigation labels
+- copywriting
+- status aliases
+- visual style
+
+They must not fork logic.
+
 ## Planned next steps
 
 1. Feishu intake split: reply-only vs governed-task

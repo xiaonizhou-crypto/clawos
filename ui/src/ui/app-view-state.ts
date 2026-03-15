@@ -163,6 +163,7 @@ export type AppViewState = {
   tasksSelectedId: string | null;
   taskDetailLoading: boolean;
   taskDetail: TasksGetResult | null;
+  tasksDecisionBusy: boolean;
   usageLoading: boolean;
   usageResult: SessionsUsageResult | null;
   usageCostSummary: CostUsageSummary | null;

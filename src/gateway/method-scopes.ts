@@ -120,6 +120,8 @@ const METHOD_SCOPE_GROUPS: Record<OperatorScope, readonly string[]> = {
     "sessions.compact",
     "tasks.create",
     "tasks.update",
+    "tasks.approve",
+    "tasks.reject",
     "connect",
     "chat.inject",
     "web.login.start",

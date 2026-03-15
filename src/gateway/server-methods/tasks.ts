@@ -4,11 +4,19 @@ import {
   errorShape,
   formatValidationErrors,
   validateTasksCreateParams,
+  validateTasksDecisionParams,
   validateTasksGetParams,
   validateTasksListParams,
   validateTasksUpdateParams,
 } from "../protocol/index.js";
-import { createGovernedTask, getGovernedTask, listGovernedTasks, updateGovernedTask } from "../../tasks/store.js";
+import {
+  approveGovernedTask,
+  createGovernedTask,
+  getGovernedTask,
+  listGovernedTasks,
+  rejectGovernedTask,
+  updateGovernedTask,
+} from "../../tasks/store.js";
 import type { GatewayRequestHandlers } from "./types.js";
 
 export const tasksHandlers: GatewayRequestHandlers = {
@@ -97,6 +105,46 @@ export const tasksHandlers: GatewayRequestHandlers = {
           }
         : undefined,
     });
+    if (!updated) {
+      respond(false, undefined, errorShape(ErrorCodes.NOT_FOUND, `task not found: ${p.taskId}`));
+      return;
+    }
+    respond(true, updated, undefined);
+  },
+  "tasks.approve": ({ params, respond }) => {
+    if (!validateTasksDecisionParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid tasks.approve params: ${formatValidationErrors(validateTasksDecisionParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    const p = params as { taskId: string; note?: string };
+    const updated = approveGovernedTask({ taskId: p.taskId, note: p.note, actorId: "control-ui" });
+    if (!updated) {
+      respond(false, undefined, errorShape(ErrorCodes.NOT_FOUND, `task not found: ${p.taskId}`));
+      return;
+    }
+    respond(true, updated, undefined);
+  },
+  "tasks.reject": ({ params, respond }) => {
+    if (!validateTasksDecisionParams(params)) {
+      respond(
+        false,
+        undefined,
+        errorShape(
+          ErrorCodes.INVALID_REQUEST,
+          `invalid tasks.reject params: ${formatValidationErrors(validateTasksDecisionParams.errors)}`,
+        ),
+      );
+      return;
+    }
+    const p = params as { taskId: string; note?: string };
+    const updated = rejectGovernedTask({ taskId: p.taskId, note: p.note, actorId: "control-ui" });
     if (!updated) {
       respond(false, undefined, errorShape(ErrorCodes.NOT_FOUND, `task not found: ${p.taskId}`));
       return;
