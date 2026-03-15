@@ -1,0 +1,61 @@
+import type { GatewayBrowserClient } from "../gateway.ts";
+import type { TasksGetResult, TasksListResult } from "../types.ts";
+
+export type TasksState = {
+  client: GatewayBrowserClient | null;
+  connected: boolean;
+  tasksLoading: boolean;
+  tasksResult: TasksListResult | null;
+  tasksError: string | null;
+  tasksQuery: string;
+  tasksSelectedId: string | null;
+  taskDetailLoading: boolean;
+  taskDetail: TasksGetResult | null;
+};
+
+export async function loadTasks(state: TasksState) {
+  if (!state.client || !state.connected || state.tasksLoading) {
+    return;
+  }
+  state.tasksLoading = true;
+  state.tasksError = null;
+  try {
+    const res = await state.client.request<TasksListResult>("tasks.list", {
+      query: state.tasksQuery || undefined,
+      limit: 100,
+    });
+    state.tasksResult = res;
+    const selectedId =
+      state.tasksSelectedId && res.tasks.some((task) => task.id === state.tasksSelectedId)
+        ? state.tasksSelectedId
+        : (res.tasks[0]?.id ?? null);
+    state.tasksSelectedId = selectedId;
+    if (selectedId) {
+      await loadTaskDetail(state, selectedId);
+    } else {
+      state.taskDetail = null;
+    }
+  } catch (err) {
+    state.tasksError = String(err);
+  } finally {
+    state.tasksLoading = false;
+  }
+}
+
+export async function loadTaskDetail(state: TasksState, taskId?: string | null) {
+  const nextId = taskId ?? state.tasksSelectedId;
+  if (!state.client || !state.connected || !nextId) {
+    state.taskDetail = null;
+    state.tasksSelectedId = nextId ?? null;
+    return;
+  }
+  state.taskDetailLoading = true;
+  state.tasksSelectedId = nextId;
+  try {
+    state.taskDetail = await state.client.request<TasksGetResult>("tasks.get", { taskId: nextId });
+  } catch (err) {
+    state.tasksError = String(err);
+  } finally {
+    state.taskDetailLoading = false;
+  }
+}

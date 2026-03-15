@@ -58,6 +58,7 @@ import type { DevicePairingList } from "./controllers/devices.ts";
 import type { ExecApprovalRequest } from "./controllers/exec-approval.ts";
 import type { ExecApprovalsFile, ExecApprovalsSnapshot } from "./controllers/exec-approvals.ts";
 import type { SkillMessage } from "./controllers/skills.ts";
+import type { TasksGetResult, TasksListResult } from "./types.ts";
 import type { GatewayBrowserClient, GatewayHelloOk } from "./gateway.ts";
 import type { Tab } from "./navigation.ts";
 import { loadSettings, type UiSettings } from "./storage.ts";
@@ -246,6 +247,14 @@ export class OpenClawApp extends LitElement {
   @state() sessionsIncludeGlobal = true;
   @state() sessionsIncludeUnknown = false;
   @state() sessionsHideCron = true;
+
+  @state() tasksLoading = false;
+  @state() tasksResult: TasksListResult | null = null;
+  @state() tasksError: string | null = null;
+  @state() tasksQuery = "";
+  @state() tasksSelectedId: string | null = null;
+  @state() taskDetailLoading = false;
+  @state() taskDetail: TasksGetResult | null = null;
 
   @state() usageLoading = false;
   @state() usageResult: import("./types.js").SessionsUsageResult | null = null;

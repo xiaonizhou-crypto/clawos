@@ -6,6 +6,11 @@ import type {
   SessionsListResultBase,
   SessionsPatchResultBase,
 } from "../../../src/shared/session-types.js";
+import type {
+  GovernedTask,
+  TasksGetResult,
+  TasksListResult,
+} from "../../../src/shared/task-types.js";
 export type { ConfigUiHints } from "../../../src/shared/config-ui-hints-types.js";
 
 export type ChannelsStatusSnapshot = {
@@ -428,6 +433,8 @@ export type SessionsPatchResult = SessionsPatchResultBase<{
   reasoningLevel?: string;
   elevatedLevel?: string;
 }>;
+
+export type { GovernedTask, TasksGetResult, TasksListResult };
 
 export type {
   CostUsageDailyEntry,

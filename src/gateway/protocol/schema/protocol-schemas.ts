@@ -140,6 +140,13 @@ import {
   SessionsResolveParamsSchema,
   SessionsUsageParamsSchema,
 } from "./sessions.js";
+import {
+  GovernedTaskSchema,
+  TasksGetParamsSchema,
+  TasksGetResultSchema,
+  TasksListParamsSchema,
+  TasksListResultSchema,
+} from "./tasks.js";
 import { PresenceEntrySchema, SnapshotSchema, StateVersionSchema } from "./snapshot.js";
 import {
   WizardCancelParamsSchema,
@@ -197,6 +204,11 @@ export const ProtocolSchemas = {
   SessionsDeleteParams: SessionsDeleteParamsSchema,
   SessionsCompactParams: SessionsCompactParamsSchema,
   SessionsUsageParams: SessionsUsageParamsSchema,
+  GovernedTask: GovernedTaskSchema,
+  TasksListParams: TasksListParamsSchema,
+  TasksGetParams: TasksGetParamsSchema,
+  TasksListResult: TasksListResultSchema,
+  TasksGetResult: TasksGetResultSchema,
   ConfigGetParams: ConfigGetParamsSchema,
   ConfigSetParams: ConfigSetParamsSchema,
   ConfigApplyParams: ConfigApplyParamsSchema,

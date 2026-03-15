@@ -27,6 +27,8 @@ import type {
   SessionUsageTimeSeries,
   SessionsListResult,
   SkillStatusReport,
+  TasksGetResult,
+  TasksListResult,
   ToolsCatalogResult,
   StatusSummary,
 } from "./types.ts";
@@ -154,6 +156,13 @@ export type AppViewState = {
   sessionsIncludeGlobal: boolean;
   sessionsIncludeUnknown: boolean;
   sessionsHideCron: boolean;
+  tasksLoading: boolean;
+  tasksResult: TasksListResult | null;
+  tasksError: string | null;
+  tasksQuery: string;
+  tasksSelectedId: string | null;
+  taskDetailLoading: boolean;
+  taskDetail: TasksGetResult | null;
   usageLoading: boolean;
   usageResult: SessionsUsageResult | null;
   usageCostSummary: CostUsageSummary | null;

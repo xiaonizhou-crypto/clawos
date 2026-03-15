@@ -56,6 +56,7 @@ import { loadLogs } from "./controllers/logs.ts";
 import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { deleteSessionAndRefresh, loadSessions, patchSession } from "./controllers/sessions.ts";
+import { loadTaskDetail, loadTasks } from "./controllers/tasks.ts";
 import {
   installSkill,
   loadSkills,
@@ -81,6 +82,7 @@ import { renderNodes } from "./views/nodes.ts";
 import { renderOverview } from "./views/overview.ts";
 import { renderSessions } from "./views/sessions.ts";
 import { renderSkills } from "./views/skills.ts";
+import { renderTasks } from "./views/tasks.ts";
 
 const AVATAR_DATA_RE = /^data:/i;
 const AVATAR_HTTP_RE = /^https?:\/\//i;
@@ -439,6 +441,27 @@ export function renderApp(state: AppViewState) {
         }
 
         ${renderUsageTab(state)}
+
+        ${
+          state.tab === "tasks"
+            ? renderTasks({
+                loading: state.tasksLoading,
+                result: state.tasksResult,
+                error: state.tasksError,
+                query: state.tasksQuery,
+                selectedId: state.tasksSelectedId,
+                detailLoading: state.taskDetailLoading,
+                detail: state.taskDetail,
+                onQueryChange: (next) => {
+                  state.tasksQuery = next;
+                },
+                onRefresh: () => loadTasks(state),
+                onSelect: (taskId) => {
+                  void loadTaskDetail(state, taskId);
+                },
+              })
+            : nothing
+        }
 
         ${
           state.tab === "cron"

@@ -26,6 +26,7 @@ import { loadNodes } from "./controllers/nodes.ts";
 import { loadPresence } from "./controllers/presence.ts";
 import { loadSessions } from "./controllers/sessions.ts";
 import { loadSkills } from "./controllers/skills.ts";
+import { loadTasks } from "./controllers/tasks.ts";
 import {
   inferBasePathFromPathname,
   normalizeBasePath,
@@ -178,6 +179,9 @@ export async function refreshActiveTab(host: SettingsHost) {
   }
   if (host.tab === "sessions") {
     await loadSessions(host as unknown as OpenClawApp);
+  }
+  if (host.tab === "tasks") {
+    await loadTasks(host as unknown as OpenClawApp);
   }
   if (host.tab === "cron") {
     await loadCron(host);
